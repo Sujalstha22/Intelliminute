@@ -661,7 +661,7 @@ def admin_dashboard():
 def health():
     return jsonify({
         "status": "running",
-        "model": "Whisper + Hybrid TF-IDF"
+        "model": "Whisper + TF-IDF"
     })
 
 if __name__ == "__main__":

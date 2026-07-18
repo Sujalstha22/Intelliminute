@@ -68,6 +68,8 @@ export const updateAdminUser = (id, data) =>
 
 export const deleteAdminUser = (id) => API.delete(`/api/admin/users/${id}`);
 
+export const getAdminDashboard = () => API.get("/api/admin/dashboard");
+
 export const healthCheck = () => API.get("/api/health");
 
 const DEMO_API = axios.create({
