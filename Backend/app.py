@@ -1,5 +1,7 @@
 import os
 import uuid
+import json
+from statistics import mean
 from flask import Flask,request, jsonify
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -18,6 +20,15 @@ from models import (
 from ml.whisper_utils import transcribe_audio
 from ml.model import analyze_meeting, clean_transcript
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+TRAINING_METRICS_PATH = os.path.join(
+    BASE_DIR,
+    "train",
+    "models",
+    "training_metrics.json"
+)
+
 app = Flask(__name__)
 
 CORS(
@@ -30,7 +41,82 @@ CORS(
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+def safe_average(values, minimum_valid=10):
+    """
+    Ignores None, missing values and extremely low values.
+    """
+
+    valid = []
+
+    for v in values:
+        try:
+            v = float(v)
+
+            if v >= minimum_valid:
+                valid.append(v)
+
+        except:
+            continue
+
+    if len(valid) == 0:
+        return 0
+
+    return round(sum(valid) / len(valid), 2)
+
+def load_training_metrics():
+    try:
+        with open(TRAINING_METRICS_PATH, "r") as f:
+            return json.load(f)
+
+    except:
+        return {
+            "classification_accuracy": 0,
+            "precision": 0,
+            "recall": 0,
+            "f1_score": 0,
+            "summary_similarity": 0,
+            "training_samples": 0,
+            "total_sentences": 0
+        }
+    
+def calculate_system_health(
+    overall,
+    transcript,
+    summary,
+    meeting_match
+):
+
+    score = round(
+        (
+            overall +
+            transcript +
+            summary +
+            meeting_match
+        ) / 4,
+        2
+    )
+
+    if score >= 90:
+        status = "Excellent"
+
+    elif score >= 80:
+        status = "Healthy"
+
+    elif score >= 70:
+        status = "Good"
+
+    elif score >= 60:
+        status = "Fair"
+
+    else:
+        status = "Needs Attention"
+
+    return {
+        "score": score,
+        "status": status
+    }
 get_db()  
+
 # ---------------------------------------------------------------------------
 # Auth routes
 # ---------------------------------------------------------------------------
@@ -319,10 +405,12 @@ def admin_get_users():
 
         users = list(db.users.find().sort("created_at", -1))
 
-        serialized = [
-            serialize_user(u)
-            for u in users
-        ]
+        serialized = []
+
+        for u in users:
+            user_data = serialize_user(u)
+            user_data["meeting_count"] = db.meetings.count_documents({"user_id": u["_id"]})
+            serialized.append(user_data)
 
         return jsonify(serialized), 200
 
@@ -413,7 +501,162 @@ def admin_delete_user(user_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+@app.route("/api/admin/dashboard", methods=["GET"])
+@token_required
+@admin_required
+def admin_dashboard():
 
+    try:
+
+        db = get_db()
+
+        users = list(db.users.find())
+
+        meetings = list(db.meetings.find())
+
+        # --------------------------
+        # USER STATS
+        # --------------------------
+
+        total_users = len(users)
+
+        total_admins = sum(
+            1
+            for u in users
+            if u.get("role") == "admin"
+        )
+
+        pro_users = sum(
+            1
+            for u in users
+            if u.get("subscribed")
+        )
+
+        total_meetings = len(meetings)
+
+        # --------------------------
+        # Runtime Metrics
+        # --------------------------
+
+        overall_scores = []
+
+        transcript_scores = []
+
+        summary_scores = []
+
+        meeting_scores = []
+
+        warning_count = 0
+
+        failed_meetings = 0
+
+        for meeting in meetings:
+
+            metrics = meeting.get("quality_metrics")
+
+            if not metrics:
+                continue
+
+            overall_scores.append(
+                metrics.get("overall_confidence")
+            )
+
+            transcript_scores.append(
+                metrics.get("transcript_quality")
+            )
+
+            summary_scores.append(
+                metrics.get("summary_confidence")
+            )
+
+            meeting_scores.append(
+                metrics.get("meeting_type_match")
+            )
+
+            warning_count += len(
+                metrics.get("warnings", [])
+            )
+
+            if metrics.get("meeting_validity", 100) < 35:
+                failed_meetings += 1
+
+        avg_overall = safe_average(overall_scores)
+
+        avg_transcript = safe_average(transcript_scores)
+
+        avg_summary = safe_average(summary_scores)
+
+        avg_match = safe_average(meeting_scores)
+
+        # --------------------------
+        # System Health
+        # --------------------------
+
+        health = calculate_system_health(
+            avg_overall,
+            avg_transcript,
+            avg_summary,
+            avg_match
+        )
+
+        # --------------------------
+        # Training Metrics
+        # --------------------------
+
+        training_metrics = load_training_metrics()
+
+        # --------------------------
+        # Response
+        # --------------------------
+
+        return jsonify({
+
+            "users":{
+
+                "total":total_users,
+
+                "admins":total_admins,
+
+                "pro_users":pro_users
+
+            },
+
+            "meetings":{
+
+                "total":total_meetings,
+
+                "failed":failed_meetings,
+
+                "warnings_generated":warning_count
+
+            },
+
+            "runtime_metrics":{
+
+                "overall_confidence":avg_overall,
+
+                "transcript_quality":avg_transcript,
+
+                "summary_confidence":avg_summary,
+
+                "meeting_type_match":avg_match
+
+            },
+
+            "system_health":health,
+
+            "training_metrics":training_metrics
+
+        })
+
+    except Exception as e:
+
+        return jsonify({
+
+            "error":str(e)
+
+        }),500
+    
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({

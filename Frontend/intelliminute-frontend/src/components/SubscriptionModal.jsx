@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { activateSubscription } from "../services/api.js";
+import toast from "react-hot-toast";
 
 export default function SubscriptionModal({ onClose, isSubscribed = false }) {
   const [loading, setLoading] = useState(false);
@@ -8,34 +9,26 @@ export default function SubscriptionModal({ onClose, isSubscribed = false }) {
   const handleSubscribe = async () => {
     // Already subscribed safeguard
     if (isSubscribed) {
-      alert("You already have an active Pro subscription.");
+      toast.error("You already have an active Pro subscription.");
       return;
     }
 
     setLoading(true);
 
     try {
-      // Fake payment processing delay
       await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Activate subscription in backend
       await activateSubscription("pro");
-
       setSuccess(true);
-
       setTimeout(() => {
         onClose();
-
-        // Refresh app state
         window.location.reload();
       }, 1500);
     } catch (err) {
       console.error("SUBSCRIPTION ERROR:", err);
-
       const message =
         err?.response?.data?.error || "Subscription failed. Please try again.";
 
-      alert(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -75,22 +68,16 @@ export default function SubscriptionModal({ onClose, isSubscribed = false }) {
                 summaries, and action items.
               </p>
             </div>
-
-            {/* Already subscribed notice */}
             {isSubscribed && (
               <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                 Your account already has an active Pro subscription.
               </div>
             )}
-
-            {/* Plans */}
             <div className="grid grid-cols-2 gap-4 mb-8">
-              {/* Free */}
               <div className="rounded-2xl border border-[#e5e5e5] p-5">
                 <p className="text-sm font-semibold text-[#1a1a1a] mb-1">
                   Free
                 </p>
-
                 <div className="mb-4">
                   <span className="text-3xl font-bold text-[#111]">Rs 0</span>
                 </div>

@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import UploadForm from "../components/UploadForm";
 import SubscriptionModal from "../components/SubscriptionModal";
 import AudioToMinutesCard from "../components/AudioToMinutesCard";
+import { useAuth } from "../context/AuthContext";
 
 const features = [
   {
@@ -140,6 +141,7 @@ export default function Home() {
   const [processing, setProcessing] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const uploadRef = useRef(null);
+  const { user } = useAuth();
 
   const scrollToUpload = () => {
     uploadRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -667,7 +669,10 @@ export default function Home() {
                   <button
                     className={`plan-cta${plan.highlight ? " featured" : ""}`}
                     onClick={() => {
+                      console.log("Clicked:", plan.name);
+
                       if (plan.name === "Pro") {
+                        console.log("Opening modal");
                         setShowSubscriptionModal(true);
                       }
                     }}
