@@ -1,0 +1,50 @@
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Backend
+backend/node_modules/
+backend/venv/
+backend/__pycache__/
+
+# Environment
+backend/.env
+frontend/.env
+
+# Audio
+backend/uploads/
+backend/processed_audio/
+backend/chunks/
+
+# Output
+backend/output/
+backend/temp/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated files
+backend/uploads/
+backend/processed_audio/
+backend/output/
+
+# Dataset
+backend/datasets/
+
+# Training artifacts
+backend/train/
+backend/checkpoints/
+
+# Models
+backend/models/
+
+# Python
+backend/venv/
+backend/__pycache__/
+
+# Environment
+backend/.env
